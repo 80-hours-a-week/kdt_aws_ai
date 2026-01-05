@@ -16,10 +16,6 @@ from utils import (
 )
 from async_tasks import run_pomodoro_background
 
-pomodoro_manager = PomodoroManager()
-
-# 현재 실행 중인 백그라운드 태스크
-current_task: Optional[asyncio.Task] = None
 
 # 비동기 입력 함수
 async def ainput(prompt: str = "") -> str:
@@ -31,14 +27,21 @@ def clear_screen() -> None:
     os.system('clear' if os.name != 'nt' else 'cls')
 
 
+# 포모도로 애플리케이션 클래스
+class PomodoroApp:    
+    def __init__(self):
+        self.manager = PomodoroManager()
+        self.current_task: Optional[asyncio.Task] = None
+
+
 # 메인 메뉴 출력
-def show_menu() -> None:
+def show_menu(app: PomodoroApp) -> None:
     clear_screen()
     
     print_header("포모도로 타이머")
     
     # 실행 중인 세션 정보 표시
-    running_info = pomodoro_manager.get_running_info_string()
+    running_info = app.manager.get_running_info_string()
     if running_info:
         print(f"\n{running_info}")
         print_separator()
@@ -52,21 +55,21 @@ def show_menu() -> None:
 
 
 # 실시간 화면 갱신
-async def screen_refresher() -> None:
+async def screen_refresher(app: PomodoroApp) -> None:
     last_info = None
     while True:
         await asyncio.sleep(1)  # 1초마다 확인
-        running_info = pomodoro_manager.get_running_info_string()
+        running_info = app.manager.get_running_info_string()
         
         # 상태가 변경되었을 때 화면 갱신
         if running_info != last_info:
-            show_menu()
+            show_menu(app)
             print("\n메뉴 선택 (0-4): ", end="", flush=True)
             last_info = running_info
 
 
 # 포모도로 세션 생성 처리
-def handle_create_session() -> None:
+def handle_create_session(app: PomodoroApp) -> None:
     try:
         print_section("포모도로 세션 생성")
         
@@ -75,7 +78,7 @@ def handle_create_session() -> None:
         break_minutes = safe_int_input("휴식 시간 (분): ", min_value=1)
         rounds = safe_int_input("라운드 수: ", min_value=1)
         
-        session = pomodoro_manager.create_session(
+        session = app.manager.create_session(
             title, focus_minutes, break_minutes, rounds
         )
         
@@ -90,19 +93,34 @@ def handle_create_session() -> None:
         print("\n세션 생성이 취소되었습니다.")
 
 
-# 포모도로 세션 백그라운드 실행
-async def handle_run_session() -> None:
-    global current_task
+# 세션 목록 조회 처리
+def handle_list_sessions(app: PomodoroApp) -> None:
+    print_section("세션 목록")
+    print_separator("=")
     
+    sessions = app.manager.list_sessions()
+    for line in session_list_generator(sessions):
+        print(line)
+    
+    if sessions:
+        pending = len(app.manager.get_pending_sessions())
+        completed = len(app.manager.get_completed_sessions())
+        print(f"\n상태별 통계: 대기 {pending}개 | 완료 {completed}개")
+    
+    wait_for_enter()
+
+
+# 포모도로 세션 백그라운드 실행
+async def handle_run_session(app: PomodoroApp) -> None:
     try:
         print_section("포모도로 실행")
         
-        if current_task and not current_task.done():
+        if app.current_task and not app.current_task.done():
             print("이미 실행 중인 세션이 있습니다.")
             wait_for_enter()
             return
         
-        pending_sessions = pomodoro_manager.get_pending_sessions()
+        pending_sessions = app.manager.get_pending_sessions()
         if not pending_sessions:
             print("실행 가능한 세션이 없습니다. 먼저 세션을 생성해주세요.")
             wait_for_enter()
@@ -115,7 +133,7 @@ async def handle_run_session() -> None:
         
         session_id = safe_int_input("실행할 세션 ID: ", min_value=1)
         
-        session = pomodoro_manager.get_session(session_id)
+        session = app.manager.get_session(session_id)
         if not session:
             print(f"\nID {session_id}번 세션을 찾을 수 없습니다.")
             wait_for_enter()
@@ -126,8 +144,8 @@ async def handle_run_session() -> None:
             wait_for_enter()
             return
         
-        current_task = asyncio.create_task(
-            run_pomodoro_background(session, pomodoro_manager)
+        app.current_task = asyncio.create_task(
+            run_pomodoro_background(session, app.manager)
         )
         
         await asyncio.sleep(0.1)
@@ -143,41 +161,24 @@ async def handle_run_session() -> None:
         print("\n실행이 취소되었습니다.")
 
 
-# 세션 목록 조회 처리
-def handle_list_sessions() -> None:
-    print_section("세션 목록")
-    print_separator("=")
-    
-    sessions = pomodoro_manager.list_sessions()
-    for line in session_list_generator(sessions):
-        print(line)
-    
-    if sessions:
-        pending = len(pomodoro_manager.get_pending_sessions())
-        completed = len(pomodoro_manager.get_completed_sessions())
-        print(f"\n상태별 통계: 대기 {pending}개 | 완료 {completed}개")
-    
-    wait_for_enter()
-
-
 # 포모도로 세션 삭제 처리
-async def handle_delete_session() -> None:
+async def handle_delete_session(app: PomodoroApp) -> None:
     try:
         print_section("포모도로 세션 삭제")
         
-        if pomodoro_manager.count_sessions() == 0:
+        if app.manager.count_sessions() == 0:
             print("등록된 세션이 없습니다.")
             wait_for_enter()
             return
         
         print("현재 세션 목록:")
-        for session in pomodoro_manager.list_sessions():
+        for session in app.manager.list_sessions():
             print(f"  {session}")
         print()
         
         session_id = safe_int_input("삭제할 세션 ID: ", min_value=1)
         
-        session = pomodoro_manager.get_session(session_id)
+        session = app.manager.get_session(session_id)
         if not session:
             print(f"\nID {session_id}번 세션을 찾을 수 없습니다.")
             wait_for_enter()
@@ -186,7 +187,7 @@ async def handle_delete_session() -> None:
         confirm = (await ainput(f"'{session.title}' 세션을 삭제하시겠습니까? (y/n): ")).strip().lower()
         if confirm != 'y':
             print("삭제가 취소되었습니다.")
-        elif pomodoro_manager.delete_session(session_id):
+        elif app.manager.delete_session(session_id):
             print(f"\n'{session.title}' 세션이 삭제되었습니다.")
         else:
             print(f"\n세션 삭제에 실패했습니다.")
@@ -201,9 +202,7 @@ async def handle_delete_session() -> None:
 
 
 # 메인 메뉴 루프 (비동기)
-async def main_menu() -> NoReturn:
-    global current_task
-    
+async def main_menu(app: PomodoroApp) -> NoReturn:
     clear_screen()
     print("\n" + "=" * 50)
     print("포모도로 타이머에 오신 것을 환영합니다.")
@@ -211,27 +210,27 @@ async def main_menu() -> NoReturn:
     input("\nEnter를 눌러 시작...")
     
     # 화면 갱신 태스크 시작
-    refresh_task = asyncio.create_task(screen_refresher())
+    refresh_task = asyncio.create_task(screen_refresher(app))
     
     try:
         while True:
             try:
-                show_menu()
+                show_menu(app)
                 choice = (await ainput("\n메뉴 선택 (0-4): ")).strip()
                 
                 if choice == "1":
-                    handle_create_session()
+                    handle_create_session(app)
                 elif choice == "2":
-                    await handle_run_session()
+                    await handle_run_session(app)
                 elif choice == "3":
-                    handle_list_sessions()
+                    handle_list_sessions(app)
                 elif choice == "4":
-                    await handle_delete_session()
+                    await handle_delete_session(app)
                 elif choice == "0":
-                    if current_task and not current_task.done():
-                        current_task.cancel()
+                    if app.current_task and not app.current_task.done():
+                        app.current_task.cancel()
                         try:
-                            await current_task
+                            await app.current_task
                         except asyncio.CancelledError:
                             pass
                     
@@ -260,8 +259,9 @@ async def main_menu() -> NoReturn:
 
 # 프로그램 진입점
 def main() -> None:
+    app = PomodoroApp()
     try:
-        asyncio.run(main_menu())
+        asyncio.run(main_menu(app))
     except KeyboardInterrupt:
         print("\n\n프로그램이 종료되었습니다.")
     except Exception as e:

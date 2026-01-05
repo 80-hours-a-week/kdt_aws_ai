@@ -59,7 +59,7 @@ def print_section(title: str, width: int = 50) -> None:
 
 
 # 세션 목록 생성
-def session_list_generator(sessions: List[PomodoroSession]) -> Iterator[str]:
+def session_list_generator(sessions: List["PomodoroSession"]) -> Iterator[str]:
     if not sessions:
         yield "생성된 세션이 없습니다."
         return
