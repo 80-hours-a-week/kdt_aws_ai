@@ -1,36 +1,107 @@
-# AWS AI School 2기 학습 아카이브
+# 포모도로 타이머 CLI 프로그램 (과제 2)
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
-[![AWS](https://img.shields.io/badge/AWS-Cloud-FF9900?style=flat&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/)
-[![AI](https://img.shields.io/badge/AI-Platform-00ADD8?style=flat&logo=ai&logoColor=white)](https://edu.rapa.or.kr/recruitment/18358)
+## 프로젝트 개요
 
----
+백그라운드 실행과 실시간 화면 갱신이 가능한 포모도로 타이머 CLI 프로그램입니다.
 
-## 과정 소개
+## 파일 구조
 
-**AWS AI School 2기**
+```
+kdt_aws_ai/
+├── docs/                # 문서
+│   └── 프로그램 순서도.md
+└── src/                 # 소스 코드
+    ├── main.py              # 메인 실행 + 메뉴 UI
+    ├── pomodoro_manager.py  # 세션 관리 + 데이터 클래스
+    ├── async_tasks.py       # 비동기 백그라운드 실행
+    └── utils.py             # 유틸리티 함수
+```
 
-- **교육 기간**: 2025.12.23.(화) ~ 2026.07.10.(금)
-- **교육 시간**: 130일 (1일 8시간, 총 1,040시간, 6.5개월)
-- **교육 기관**: DX 캠퍼스 (한국전파진흥협회)
-- **교육 내용**: AWS 클라우드, AI/ML, 빅데이터 기반 실무 프로젝트
+## 주요 기능
 
----
+1. **세션 생성**: 제목, 집중/휴식 시간, 라운드 수 설정
+2. **백그라운드 실행**: 메뉴를 사용하면서 동시에 타이머 실행
+3. **실시간 화면 갱신**: 1초마다 자동 업데이트 (라운드/시간 정보)
+4. **세션 목록 조회**: 상태별 통계 (pending, running, completed)
+5. **세션 삭제**: 실행 중이 아닌 세션 삭제
 
-## 학습 아카이브 목적
+## Python 고급 기능 활용
 
-이 레포지토리는 **AWS AI School 2기 과정**에서 학습한 내용을 체계적으로 정리하고 아카이브하기 위해 만들어졌습니다.
+### 1. 비동기 처리 (asyncio)
+- **백그라운드 실행**: `asyncio.create_task()`로 독립적인 태스크 생성
+- **실시간 화면 갱신**: 1초마다 자동으로 화면 업데이트
+- **비동기 입력**: `loop.run_in_executor()`로 논블로킹 입력 처리
+- **효율적인 타이머**: 0.1초 단위로 체크하는 `wait_timer()` 구현
 
-### 목표
-- **과제 제출**: 주차별 과제 코드 및 문서 정리
-- **딥다이브**: 각 주제에 대한 심화 학습 및 원리 탐구
-- **복습**: 학습한 개념을 되돌아보고 개선점 파악
-- **성장 기록**: 학습 과정의 발전 과정을 시각화
+### 2. 제너레이터 (Generator)
+- 메모리 효율적인 세션 목록 출력
+- `yield from`을 활용한 데이터 생성
 
-## 📌 참고 링크
+### 3. 타입 힌트 (Type Hints)
+- 모든 함수에 파라미터 및 반환 타입 명시
+- `Literal`, `Optional`, `List` 등 고급 타입 활용
 
-- [DX 캠퍼스 AWS AI School 페이지](https://edu.rapa.or.kr/recruitment/18358)
+### 4. 데이터 클래스 (dataclass)
+- `@dataclass`를 사용한 PomodoroSession 클래스
+- 간결한 데이터 모델 정의
 
----
+### 5. List Comprehension
+- 상태별 세션 필터링 (`pending`, `completed`)
 
-**Last Updated**: 2026.01.05
+### 6. 예외 처리
+- 안전한 입력 검증 (`safe_int_input`, `safe_string_input`)
+- `KeyboardInterrupt`, `ValueError` 처리
+
+## 실행 방법
+```bash
+git clone https://github.com/80-hours-a-week/kdt_aws_ai.git
+cd kdt_aws_ai
+python src/main.py
+```
+
+## 실행 예시
+
+### 메인 화면 (실행 중)
+```
+==================================================
+포모도로 타이머
+==================================================
+
+[실행 중] 세션 1 - 라운드 2/4 - 집중 | 12:34 / 25:00
+--------------------------------------------------
+
+1. 포모도로 세션 생성
+2. 포모도로 실행
+3. 세션 목록 조회
+4. 포모도로 세션 삭제
+0. 프로그램 종료
+==================================================
+```
+
+### 세션 목록
+```
+세션 1 [알고리즘 공부] - 집중 25분 / 휴식 5분 x 4라운드 (running)
+세션 2 [영어 공부] - 집중 30분 / 휴식 10분 x 2라운드 (pending)
+세션 3 [독서] - 집중 50분 / 휴식 10분 x 1라운드 (completed)
+
+총 3개의 세션
+상태별 통계: 대기 1개 | 완료 1개
+```
+
+## 주요 특징
+
+- 백그라운드에서 타이머 실행 중에도 메뉴 사용 가능
+- 실시간으로 라운드 진행 상황 및 시간 표시
+- 실행 중인 세션은 삭제 불가 (안전한 상태 관리)
+- 프로그램 종료 시 실행 중인 태스크 자동 정리
+- 취소 시 pending 상태로 자동 복원
+
+## 기술 스택
+
+| 항목 | 내용 |
+|------|------|
+| **Python** | 3.10+ |
+| **비동기** | asyncio |
+| **타입** | dataclass, typing (Literal, Optional, List) |
+| **파일** | 4개 (main, manager, async_tasks, utils) |
+
